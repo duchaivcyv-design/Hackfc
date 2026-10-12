@@ -1,0 +1,5 @@
+#!/bin/bash
+chmod 755 /Library/MobileSubstrate/DynamicLibraries/fcintl.dylib 2>/dev/null
+chmod 644 /Library/MobileSubstrate/DynamicLibraries/fcintl.plist 2>/dev/null
+killall -9 SpringBoard 2>/dev/null
+exit 0
