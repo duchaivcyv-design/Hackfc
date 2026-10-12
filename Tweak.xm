@@ -138,14 +138,36 @@ static void showMenu(void) {
             gWin.hidden = !gWin.hidden;
             return;
         }
-        CGRect r = CGRectMake(0, 0, 300, 470);
-        UIWindow *w = [[UIWindow alloc] initWithFrame:r];
-        w.windowLevel = UIWindowLevelAlert + 1000;
+
+        UIWindowScene *scene = nil;
+        for (UIScene *s in [UIApplication sharedApplication].connectedScenes) {
+            if ([s isKindOfClass:[UIWindowScene class]]) {
+                scene = (UIWindowScene *)s;
+                break;
+            }
+        }
+
+        UIWindow *w;
+        if (scene) {
+            w = [[UIWindow alloc] initWithWindowScene:scene];
+            w.frame = CGRectMake(0, 0, 300, 470);
+        } else {
+            w = [[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 300, 470)];
+        }
+
+        w.windowLevel = UIWindowLevelAlert + 100;
         w.backgroundColor = [UIColor clearColor];
         w.center = CGPointMake([UIScreen mainScreen].bounds.size.width  / 2,
                                [UIScreen mainScreen].bounds.size.height / 2);
-        gView = [[FCMView alloc] initWithFrame:w.bounds];
-        [w addSubview:gView];
+
+        UIViewController *vc = [[UIViewController alloc] init];
+        vc.view.backgroundColor = [UIColor clearColor];
+
+        gView = [[FCMView alloc] initWithFrame:vc.view.bounds];
+        gView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        [vc.view addSubview:gView];
+
+        w.rootViewController = vc;
 
         UITapGestureRecognizer *hide = [[UITapGestureRecognizer alloc] initWithTarget:gView
                                                                                action:@selector(hideSelf)];
@@ -156,7 +178,7 @@ static void showMenu(void) {
         gWin = w;
         w.hidden = NO;
         [w makeKeyAndVisible];
-        NSLog(@"[fcintl] showMenu window created");
+        NSLog(@"[fcintl] showMenu window created, scene=%p", scene);
     });
 }
 
@@ -309,8 +331,8 @@ static int my_stat(const char *p, struct stat *b) {
 
 static int my_access(const char *p, int m) {
     if (gOn && gJB && p) {
-        const char *bad[] = {"/var/jbusr","/Applications/Cydia","/Library/MobileSubstrate",
-                             "//sbin/sshd","frida","fcintl",NULL};
+        const char *bad[] = {"/var/jb","/Applications/Cydia","/Library/MobileSubstrate",
+                             "/usr/sbin/sshd","frida","fcintl",NULL};
         for (int i = 0; bad[i]; i++)
             if (strstr(p, bad[i])) return -1;
     }
