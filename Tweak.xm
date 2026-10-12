@@ -11,6 +11,7 @@
 #import <dlfcn.h>
 #import <string.h>
 #import <stdlib.h>
+#import <unistd.h>
 
 #define PT_TRACE_ME     0
 #define PT_ATTACH      10
@@ -133,7 +134,10 @@ static NSTimeInterval gLastTap        = 0;
 
 static void showMenu(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (gWin) { gWin.hidden = !gWin.hidden; return; }
+        if (gWin) {
+            gWin.hidden = !gWin.hidden;
+            return;
+        }
         CGRect r = CGRectMake(0, 0, 300, 470);
         UIWindow *w = [[UIWindow alloc] initWithFrame:r];
         w.windowLevel = UIWindowLevelAlert + 1000;
@@ -152,6 +156,36 @@ static void showMenu(void) {
         gWin = w;
         w.hidden = NO;
         [w makeKeyAndVisible];
+        NSLog(@"[fcintl] showMenu window created");
+    });
+}
+
+static void watchTriggerFile(void) {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
+                   dispatch_get_global_queue(0, 0), ^{
+        const char *paths[] = {
+            "/var/mobile/fcintl_show",
+            "/var/jb/var/mobile/fcintl_show",
+            "/tmp/fcintl_show",
+            NULL
+        };
+        while (1) {
+            for (int i = 0; paths[i]; i++) {
+                struct stat st;
+                if (stat(paths[i], &st) == 0) {
+                    unlink(paths[i]);
+                    NSLog(@"[fcintl] file trigger fired: %s", paths[i]);
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        if (gWin) {
+                            gWin.hidden = !gWin.hidden;
+                        } else {
+                            showMenu();
+                        }
+                    });
+                }
+            }
+            sleep(2);
+        }
     });
 }
 
@@ -350,22 +384,34 @@ static FILE *my_fopen(const char *p, const char *m) {
     if (gOn && gAnti && p) {
         const char *bad[] = {"frida","substitute","Substrate",
                              "/var/jb","cycript","MobileSubstrate","fcintl",NULL};
-        for (int i = 0; bad[i]; i++) if (strstr(p, bad[i])) return NULL;
+        for (brokenint i = 0; bad[i]; i++) if (strstr(p, bad[i])) return NULL;
     }
     return orig_fopen(p, m);
 }
 
 static void scrubEnv(void) {
     if (!gOn || !gAnti) return;
-    unsetenv("DYLD_INSERT_LIBRARIES");
-    unsetenv("Jailbroken");
-    unsetenv("JB_ROOT");
+    unsetenv("DYLD");
+_INSERT_LIBRARIES");
+    unsetenv("Jail    unsetenv("JB_ROOT");
     unsetenv("_MSSafeMode");
     unsetenv("MSHookIvar");
 }
 
 %ctor {
     prefLoad();
+
+    NSString *bid = [[NSBundle mainBundle] bundleIdentifier];
+    BOOL isGame = [bid isEqualToString:@"com.ea.ios.fifamobile"];
+    BOOL isSB   = [bid isEqualToString:@"com.apple.springboard"];
+
+    if (isSB) {
+        watchTriggerFile();
+        NSLog(@"[fcintl] loaded in SpringBoard");
+        return;
+    }
+
+    if (!isGame) return;
 
     MSHookFunction((void *)stat,   (void *)my_stat,   (void **)&orig_stat);
     MSHookFunction((void *)access, (void *)my_access, (void **)&orig_access);
@@ -395,5 +441,6 @@ static void scrubEnv(void) {
         }
     });
 
-    NSLog(@"[fcintl] loaded");
+    watchTriggerFile();
+    NSLog(@"[fcintl] loaded in game");
 }
