@@ -4,6 +4,7 @@
 #import <substrate.h>
 #import <sys/stat.h>
 #import <sys/sysctl.h>
+#import <sys/types.h>
 #import <dlfcn.h>
 #import <string.h>
 #import <mach-o/dyld.h>
@@ -13,7 +14,7 @@ static BOOL gOn=YES, gCoin=YES, gGem=YES, gXP=YES, gStam=YES;
 static BOOL gSpeed=NO, gAuto=NO, gUnlock=YES;
 static BOOL gAnti=YES, gFrida=YES, gJB=YES, gDeb=YES;
 
-static NSArray *prefKeys() {
+static NSArray *prefKeys(void) {
     return @[@"on",@"coin",@"gem",@"xp",@"stam",@"speed",
              @"auto",@"unlock",@"anti",@"frida",@"jb",@"deb"];
 }
@@ -61,7 +62,7 @@ static void prefLoad(void) {
 
     UIButton *close = [UIButton buttonWithType:UIButtonTypeSystem];
     close.frame = CGRectMake(f.size.width - 36, 8, 30, 30);
-    [close setTitle:@"×" forState:UIControlStateNormal];
+    [close setTitle:@"x" forState:UIControlStateNormal];
     close.titleLabel.font = [UIFont boldSystemFontOfSize:22];
     close.tintColor = [UIColor redColor];
     [close addTarget:self action:@selector(hideSelf) forControlEvents:UIControlEventTouchUpInside];
@@ -78,7 +79,7 @@ static void prefLoad(void) {
     NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
 
     _switches = [NSMutableArray array];
-    for (int i = 0; i < names.count; i++) {
+    for (int i = 0; i < (int)names.count; i++) {
         UILabel *l = [[UILabel alloc] initWithFrame:CGRectMake(14, 6 + i*38, 180, 28)];
         l.text = names[i];
         l.textColor = [UIColor whiteColor];
@@ -117,8 +118,8 @@ static void prefLoad(void) {
 @end
 
 // ===== window + gesture =====
-static UIWindow *gWin;
-static FCMView *gView;
+static UIWindow *gWin = nil;
+static FCMView  *gView = nil;
 
 static void showMenu(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -143,24 +144,32 @@ static void showMenu(void) {
     });
 }
 
+// dùng accessibilityIdentifier thay cho tag — UITapGestureRecognizer không có tag
 static void attachTrigger(UIWindow *w) {
     if (!w) return;
-    if ([w viewWithTag:6767]) return;
+    for (UIGestureRecognizer *g in w.gestureRecognizers) {
+        if ([g.accessibilityIdentifier isEqualToString:@"fci-trigger"]) return;
+    }
     UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] init];
     tap.numberOfTouchesRequired = 3;
     tap.numberOfTapsRequired = 2;
-    tap.tag = 6767;
+    tap.accessibilityIdentifier = @"fci-trigger";
+    [tap addTarget:[UIApplication sharedApplication]
+            action:@selector(fciTrigger)];
     [w addGestureRecognizer:tap];
-    [tap addTarget:[UIApplication sharedApplication] action:@selector(_fcm_trigger)];
 }
 
 // ===== hooks =====
 %hook UIApplication
-- (void)_fcm_trigger { showMenu(); }
+%new
+- (void)fciTrigger { showMenu(); }
 %end
 
 %hook UIWindow
-- (void)makeKeyAndVisible { %orig; attachTrigger(self); }
+- (void)makeKeyAndVisible {
+    %orig;
+    attachTrigger(self);
+}
 %end
 
 %hook NSUserDefaults
@@ -185,39 +194,47 @@ static void attachTrigger(UIWindow *w) {
 %end
 
 // ===== anti-check =====
-static int (*orig_stat)(const char *, struct stat *);
+typedef int  (*stat_t)(const char *, struct stat *);
+typedef int  (*access_t)(const char *, int);
+typedef int  (*sysctl_t)(int *, u_int, void *, size_t *, void *, size_t);
+typedef void *(*dlopen_t)(const char *, int);
+
+static stat_t   orig_stat   = NULL;
+static access_t orig_access = NULL;
+static sysctl_t orig_sysctl = NULL;
+static dlopen_t orig_dlopen = NULL;
+
 static int my_stat(const char *p, struct stat *b) {
     if (gOn && gJB && p) {
         const char *bad[] = {"/var/jb","/Applications/Cydia","/Library/MobileSubstrate",
                              "/usr/sbin/sshd","/etc/apt","Substrate","substitute",
                              "frida","cycript",NULL};
-        for (int i = 0; bad[i]; i++) if (strstr(p, bad[i])) return -1;
+        for (int i = 0; bad[i]; i++)
+            if (strstr(p, bad[i])) return -1;
     }
     return orig_stat(p, b);
 }
 
-static int (*orig_access)(const char *, int);
 static int my_access(const char *p, int m) {
     if (gOn && gJB && p) {
         const char *bad[] = {"/var/jb","/Applications/Cydia","/Library/MobileSubstrate",
                              "/usr/sbin/sshd","frida",NULL};
-        for (int i = 0; bad[i]; i++) if (strstr(p, bad[i])) return -1;
+        for (int i = 0; bad[i]; i++)
+            if (strstr(p, bad[i])) return -1;
     }
     return orig_access(p, m);
 }
 
-static int (*orig_sysctl)(int *, u_int, void *, size_t *, void *, size_t);
-static int my_sysctl(int *n, u_int nl, void *o, size_t *os, void *ni, size_t nil) {
-    int r = orig_sysctl(n, nl, o, os, ni, nil);
+static int my_sysctl(int *n, u_int nl, void *o, size_t *os, void *ni, size_t oldlen) {
+    int r = orig_sysctl(n, nl, o, os, ni, oldlen);
     if (gOn && gFrida && n && nl == 4 && n[0] == CTL_KERN && n[1] == KERN_PROC) {
-        if (o && os) memset(ovoid, 0, *os);
+        if (o && os) memset(o, 0, *os);
     }
     return r;
 }
 
-static void *(*orig_dlopen)(const char *, int);
-static void * *)my_dlopen(const char *p, int m) {
-    if (gOn && gFrida && p && strstrmy(p, "frida")) return NULL;
+static void *my_dlopen(const char *p, int m) {
+    if (gOn && gFrida && p && strstr(p, "frida")) return NULL;
     return orig_dlopen(p, m);
 }
 
@@ -225,7 +242,7 @@ static void * *)my_dlopen(const char *p, int m) {
 %ctor {
     prefLoad();
     MSHookFunction((void *)stat,   (void *)my_stat,   (void **)&orig_stat);
-    MSHookFunction((void *)access, (_access, (void **)&orig_access);
+    MSHookFunction((void *)access, (void *)my_access, (void **)&orig_access);
     MSHookFunction((void *)sysctl, (void *)my_sysctl, (void **)&orig_sysctl);
     MSHookFunction((void *)dlopen, (void *)my_dlopen, (void **)&orig_dlopen);
     NSLog(@"[fcintl] loaded");
