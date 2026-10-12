@@ -1,4 +1,8 @@
 #!/bin/bash
-rm -f /var/mobile/Library/Preferences/com.ollie.fcintl.plist 2>/dev/null
-killall -9 SpringBoard 2>/dev/null
+JBROOT="${THEOS_PACKAGE_INSTALL_PREFIX:-}"
+if [ -d "/var/jb" ] && [ -z "$JBROOT" ]; then
+    JBROOT="/var/jb"
+fi
+rm -f "${JBROOT}/var/mobile/Library/Preferences/com.ollie.fcintl.plist" 2>/dev/null
+rm -f "/var/mobile/Library/Preferences/com.ollie.fcintl.plist" 2>/dev/null
 exit 0
