@@ -19,12 +19,8 @@
 #define PT_DENY_ATTACH 31
 extern int ptrace(int request, pid_t pid, caddr_t addr, int data);
 
-// csops / task_info — prototype tay
+// csops — prototype tay
 extern int csops(pid_t pid, unsigned int ops, void *useraddr, size_t usersize);
-extern kern_return_t task_info(task_name_t target_task,
-                               task_flavor_t flavor,
-                               task_info_t task_info_out,
-                               mach_msg_type_number_t *task_info_outCnt);
 
 // ===== state =====
 static BOOL gOn=YES, gCoin=YES, gGem=YES, gXP=YES, gStam=YES;
@@ -73,15 +69,15 @@ static void prefLoad(void) {
     UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(0, 12, f.size.width, 24)];
     title.text = @"olliE intl";
     title.textColor = [UIColor colorWithRed:0 green:1 blue:0.6 alpha:1];
-    title.textAlignment = NSTextAlignmentCenter;
+    title.textAlignment = NizerSTextAlignmentCenter;
     title.font = [UIFont boldSystemFontOfSize:15];
-    [self addSubview:title];
+    [self * addSubview:title];
 
     UIButton *close = [UIButton buttonWithType:UIButtonTypeSystem];
-    close.frame = CGRectMake(f.size.width - 36, 8, 30, 30);
+    close.frame = CGRectMake(f.size.width - 36, 8,g 30, 30);
     [close setTitle:@"x" forState:UIControlStateNormal];
-    close.titleLabel.font = [UIFont boldSystemFontOfSize:22];
-    close.tintColor = [UIColor redColor];
+    close.titleLabel.font =Trigger [UIFont boldSystemFontOfSize:22];
+    close.tintColor = [UIColor = redColor];
     [close addTarget:self action:@selector(hideSelf) forControlEvents:UIControlEventTouchUpInside];
     [self addSubview:close];
 
@@ -137,7 +133,7 @@ static void prefLoad(void) {
 // ===== window + gesture =====
 static UIWindow *gWin = nil;
 static FCMView  *gView = nil;
-static UITapGestureRecognizer *gTrigger = nil;
+static UITapGestureRecogn nil;
 
 static void showMenu(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -234,24 +230,24 @@ typedef int      (*access_t)(const char *, int);
 typedef int      (*sysctl_t)(int *, u_int, void *, size_t *, void *, size_t);
 typedef void    *(*dlopen_t)(const char *, int);
 typedef int      (*ptrace_t)(int, pid_t, caddr_t, int);
-typedef kern_return_t (*task_info_t)(task_name_t, task_flavor_t, task_info_t, mach_msg_type_number_t *);
+typedef kern_return_t (*task_info_fn_t)(task_name_t, task_flavor_t, integer_t *, mach_msg_type_number_t *);
 typedef int      (*csops_t)(pid_t, unsigned int, void *, size_t);
 typedef uint32_t (*dyld_count_t)(void);
 typedef const char *(*dyld_name_t)(uint32_t);
 typedef char    *(*getenv_t)(const char *);
 typedef FILE    *(*fopen_t)(const char *, const char *);
 
-static stat_t        orig_stat          = NULL;
-static access_t      orig_access        = NULL;
-static sysctl_t      orig_sysctl        = NULL;
-static dlopen_t      orig_dlopen        = NULL;
-static ptrace_t      orig_ptrace        = NULL;
-static task_info_t   orig_task_info     = NULL;
-static csops_t       orig_csops         = NULL;
-static dyld_count_t  orig_dyld_count    = NULL;
-static dyld_name_t   orig_dyld_name     = NULL;
-static getenv_t      orig_getenv        = NULL;
-static fopen_t       orig_fopen         = NULL;
+static stat_t         orig_stat          = NULL;
+static access_t       orig_access        = NULL;
+static sysctl_t       orig_sysctl        = NULL;
+static dlopen_t       orig_dlopen        = NULL;
+static ptrace_t       orig_ptrace        = NULL;
+static task_info_fn_t orig_task_info     = NULL;
+static csops_t        orig_csops         = NULL;
+static dyld_count_t   orig_dyld_count    = NULL;
+static dyld_name_t    orig_dyld_name     = NULL;
+static getenv_t       orig_getenv        = NULL;
+static fopen_t        orig_fopen         = NULL;
 
 static int my_stat(const char *p, struct stat *b) {
     if (gOn && gJB && p) {
@@ -297,7 +293,7 @@ static int my_ptrace(int req, pid_t pid, caddr_t addr, int data) {
 }
 
 static kern_return_t my_task_info(task_name_t t, task_flavor_t fi,
-                                  task_info_t ti, mach_msg_type_number_t *cnt) {
+                                  integer_t *ti, mach_msg_type_number_t *cnt) {
     if (gOn && gAnti && fi == TASK_DYLD_INFO) {
         if (ti && cnt) memset(ti, 0, *cnt * sizeof(integer_t));
         return KERN_SUCCESS;
