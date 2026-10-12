@@ -1,4 +1,3 @@
-// fcintl — Tweak.xm
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <substrate.h>
@@ -13,16 +12,12 @@
 #import <string.h>
 #import <stdlib.h>
 
-// ptrace — iOS SDK không ship header
 #define PT_TRACE_ME     0
 #define PT_ATTACH      10
 #define PT_DENY_ATTACH 31
 extern int ptrace(int request, pid_t pid, caddr_t addr, int data);
-
-// csops — prototype tay
 extern int csops(pid_t pid, unsigned int ops, void *useraddr, size_t usersize);
 
-// ===== state =====
 static BOOL gOn=YES, gCoin=YES, gGem=YES, gXP=YES, gStam=YES;
 static BOOL gSpeed=NO, gAuto=NO, gUnlock=YES;
 static BOOL gAnti=YES, gFrida=YES, gJB=YES, gDeb=YES;
@@ -48,7 +43,6 @@ static void prefLoad(void) {
         *prefPtrs[i] = [d boolForKey:[@"fci_" stringByAppendingString:k[i]]];
 }
 
-// ===== UI =====
 @interface FCMView : UIView
 @end
 
@@ -69,15 +63,15 @@ static void prefLoad(void) {
     UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(0, 12, f.size.width, 24)];
     title.text = @"olliE intl";
     title.textColor = [UIColor colorWithRed:0 green:1 blue:0.6 alpha:1];
-    title.textAlignment = NizerSTextAlignmentCenter;
+    title.textAlignment = NSTextAlignmentCenter;
     title.font = [UIFont boldSystemFontOfSize:15];
-    [self * addSubview:title];
+    [self addSubview:title];
 
     UIButton *close = [UIButton buttonWithType:UIButtonTypeSystem];
-    close.frame = CGRectMake(f.size.width - 36, 8,g 30, 30);
+    close.frame = CGRectMake(f.size.width - 36, 8, 30, 30);
     [close setTitle:@"x" forState:UIControlStateNormal];
-    close.titleLabel.font =Trigger [UIFont boldSystemFontOfSize:22];
-    close.tintColor = [UIColor = redColor];
+    close.titleLabel.font = [UIFont boldSystemFontOfSize:22];
+    close.tintColor = [UIColor redColor];
     [close addTarget:self action:@selector(hideSelf) forControlEvents:UIControlEventTouchUpInside];
     [self addSubview:close];
 
@@ -130,10 +124,9 @@ static void prefLoad(void) {
 }
 @end
 
-// ===== window + gesture =====
 static UIWindow *gWin = nil;
 static FCMView  *gView = nil;
-static UITapGestureRecogn nil;
+static UITapGestureRecognizer *gTrigger = nil;
 
 static void showMenu(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -169,7 +162,6 @@ static void attachTrigger(UIWindow *w) {
     gTrigger = tap;
 }
 
-// ===== hooks =====
 %hook UIApplication
 %new
 - (void)fciTrigger { showMenu(); }
@@ -224,7 +216,6 @@ static void attachTrigger(UIWindow *w) {
 }
 %end
 
-// ===== anti-check (libc layer) =====
 typedef int      (*stat_t)(const char *, struct stat *);
 typedef int      (*access_t)(const char *, int);
 typedef int      (*sysctl_t)(int *, u_int, void *, size_t *, void *, size_t);
@@ -342,7 +333,6 @@ static FILE *my_fopen(const char *p, const char *m) {
     return orig_fopen(p, m);
 }
 
-// ===== realtime scrub =====
 static void scrubEnv(void) {
     if (!gOn || !gAnti) return;
     unsetenv("DYLD_INSERT_LIBRARIES");
@@ -352,7 +342,6 @@ static void scrubEnv(void) {
     unsetenv("MSHookIvar");
 }
 
-// ===== entry =====
 %ctor {
     prefLoad();
 
@@ -378,8 +367,8 @@ static void scrubEnv(void) {
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC),
                    dispatch_get_global_queue(0, 0), ^{
-        while (1) { scrubEnv(); sleep(3); }
+        while (1) { scrubEnv(); sleep(3);(@ }
     });
 
-    NSLog(@"[fcintl] loaded");
+    NSLog"[fcintl] loaded");
 }
