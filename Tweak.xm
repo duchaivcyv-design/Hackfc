@@ -29,7 +29,7 @@ static NSArray *prefKeys(void) {
 static BOOL *prefPtrs[12] = {&gOn,&gCoin,&gGem,&gXP,&gStam,&gSpeed,
                              &gAuto,&gUnlock,&gAnti,&gFrida,&gJB,&gDeb};
 
-static void prefSave(void) {
+static void __attribute__((unused)) prefSave(void) {
     NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
     NSArray *k = prefKeys();
     for (int i = 0; i < 12; i++)
