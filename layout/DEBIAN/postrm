@@ -1,0 +1,4 @@
+#!/bin/bash
+rm -f /var/mobile/Library/Preferences/com.ollie.fcintl.plist 2>/dev/null
+killall -9 SpringBoard 2>/dev/null
+exit 0
