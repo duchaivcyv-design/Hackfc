@@ -126,7 +126,7 @@ static void prefLoad(void) {
 
 static UIWindow *gWin = nil;
 static FCMView  *gView = nil;
-static UITapGestureRecognizer *gTrigger = nil;
+static NSTimeInterval gLastTap = 0;
 
 static void showMenu(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -151,26 +151,27 @@ static void showMenu(void) {
     });
 }
 
-static void attachTrigger(UIWindow *w) {
-    if (!w) return;
-    if (gTrigger && gTrigger.view == w) return;
-    UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] init];
-    tap.numberOfTouchesRequired = 3;
-    tap.numberOfTapsRequired = 2;
-    [tap addTarget:[UIApplication sharedApplication] action:@selector(fciTrigger)];
-    [w addGestureRecognizer:tap];
-    gTrigger = tap;
-}
-
 %hook UIApplication
-%new
-- (void)fciTrigger { showMenu(); }
-%end
-
-%hook UIWindow
-- (void)makeKeyAndVisible {
+- (void)sendEvent:(UIEvent *)event {
+    if (event.type == UIEventTypeTouches) {
+        NSSet *all = [event allTouches];
+        NSInteger begins = 0;
+        for (UITouch *t in all)
+            if (t.phase == UITouchPhaseBegan) begins++;
+        if (begins >= 3) {
+            NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
+            if (gLastTap > 0 && (now - gLastTap) < 0.5) {
+                gLastTap = 0;
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (gWin) gWin.hidden = !gWin.hidden;
+                    else showMenu();
+                });
+            } else {
+                gLastTap = now;
+            }
+        }
+    }
     %orig;
-    attachTrigger(self);
 }
 %end
 
