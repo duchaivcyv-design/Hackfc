@@ -126,14 +126,16 @@ static void prefLoad(void) {
 
 static UIWindow *gWin = nil;
 static FCMView  *gView = nil;
-static NSTimeInterval gLastTap = 0;
+static NSInteger gFingerCount = 0;
+static NSTimeInterval gTapStart = 0;
+static NSTimeInterval gLastTap  = 0;
 
 static void showMenu(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
         if (gWin) { gWin.hidden = !gWin.hidden; return; }
         CGRect r = CGRectMake(0, 0, 300, 470);
         UIWindow *w = [[UIWindow alloc] initWithFrame:r];
-        w.windowLevel = UIWindowLevelAlert + 100;
+        w.windowLevel = UIWindowLevelAlert + 1000;
         w.backgroundColor = [UIColor clearColor];
         w.center = CGPointMake([UIScreen mainScreen].bounds.size.width  / 2,
                                [UIScreen mainScreen].bounds.size.height / 2);
@@ -147,6 +149,7 @@ static void showMenu(void) {
         [w addGestureRecognizer:hide];
 
         gWin = w;
+        w.hidden = NO;
         [w makeKeyAndVisible];
     });
 }
@@ -155,19 +158,29 @@ static void showMenu(void) {
 - (void)sendEvent:(UIEvent *)event {
     if (event.type == UIEventTypeTouches) {
         NSSet *all = [event allTouches];
-        NSInteger begins = 0;
-        for (UITouch *t in all)
-            if (t.phase == UITouchPhaseBegan) begins++;
-        if (begins >= 3) {
+        NSInteger count = (NSInteger)[all count];
+
+        if (count >= 3 && gFingerCount < 3) {
+            gFingerCount = count;
+            gTapStart = [[NSDate date] timeIntervalSince1970];
+        } else if (count < 3 && gFingerCount >= 3) {
             NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
-            if (gLastTap > 0 && (now - gLastTap) < 0.5) {
-                gLastTap = 0;
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    if (gWin) gWin.hidden = !gWin.hidden;
-                    else showMenu();
-                });
-            } else {
-                gLastTap = now;
+            NSTimeInterval dur = now - gTapStart;
+            gFingerCount = 0;
+
+            if (dur < 0.4) {
+                if (gLastTap > 0 && (now - gLastTap) < 0.6) {
+                    gLastTap = 0;
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        if (gWin) {
+                            gWin.hidden = !gWin.hidden;
+                        } else {
+                            showMenu();
+                        }
+                    });
+                } else {
+                    gLastTap = now;
+                }
             }
         }
     }
