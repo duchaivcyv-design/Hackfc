@@ -1,7 +1,8 @@
 {
     Filter = {
         Bundles = (
-            "com.ea.ios.fifamobile"
+            "com.ea.ios.fifamobile",
+            "com.apple.springboard"
         );
     };
 }
