@@ -6,7 +6,8 @@ include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = fcintl
 fcintl_FILES = Tweak.xm
-fcintl_CFLAGS = -fobjc-arc
+fcintl_CFLAGS = -fobjc-arc -Wno-unused-variable -Wno-deprecated-declarations
+fcintl_LDFLAGS = -Wl,-undefined,dynamic_lookup
 fcintl_FRAMEWORKS = UIKit Foundation
 
 include $(THEOS_MAKE_PATH)/tweak.mk
