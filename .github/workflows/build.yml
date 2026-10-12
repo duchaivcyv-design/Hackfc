@@ -82,6 +82,12 @@ jobs:
           brew install ldid make
           echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
 
+      - name: fix script perms
+        run: |
+          chmod 755 layout/DEBIAN/postinst
+          chmod 755 layout/DEBIAN/prerm
+          chmod 755 layout/DEBIAN/postrm
+
       - name: build (${{ matrix.scheme }})
         run: |
           SCHEME_FLAG=""
@@ -126,10 +132,10 @@ jobs:
           name: "Nightly"
           body: |
             This build was automatically generated from the latest commit on `main`.
-            
+
             **Commit SHA:** ${{ github.sha }}
             **Triggered by:** @${{ github.actor }}
-            
+
             > [!NOTE]
             > A nightly build is basically the next update partially done. Additionally, this build might have the old version number but the code itself should has the latest commit.
           prerelease: true
