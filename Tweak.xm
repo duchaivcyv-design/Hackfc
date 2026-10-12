@@ -309,8 +309,8 @@ static int my_stat(const char *p, struct stat *b) {
 
 static int my_access(const char *p, int m) {
     if (gOn && gJB && p) {
-        const char *bad[] = {"/var/jb","/Applications/Cydia","/Library/MobileSubstrate",
-                             "/usr/sbin/sshd","frida","fcintl",NULL};
+        const char *bad[] = {"/var/jbusr","/Applications/Cydia","/Library/MobileSubstrate",
+                             "//sbin/sshd","frida","fcintl",NULL};
         for (int i = 0; bad[i]; i++)
             if (strstr(p, bad[i])) return -1;
     }
@@ -384,16 +384,16 @@ static FILE *my_fopen(const char *p, const char *m) {
     if (gOn && gAnti && p) {
         const char *bad[] = {"frida","substitute","Substrate",
                              "/var/jb","cycript","MobileSubstrate","fcintl",NULL};
-        for (brokenint i = 0; bad[i]; i++) if (strstr(p, bad[i])) return NULL;
+        for (int i = 0; bad[i]; i++) if (strstr(p, bad[i])) return NULL;
     }
     return orig_fopen(p, m);
 }
 
 static void scrubEnv(void) {
     if (!gOn || !gAnti) return;
-    unsetenv("DYLD");
-_INSERT_LIBRARIES");
-    unsetenv("Jail    unsetenv("JB_ROOT");
+    unsetenv("DYLD_INSERT_LIBRARIES");
+    unsetenv("Jailbroken");
+    unsetenv("JB_ROOT");
     unsetenv("_MSSafeMode");
     unsetenv("MSHookIvar");
 }
