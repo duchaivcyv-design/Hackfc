@@ -367,8 +367,11 @@ static void scrubEnv(void) {
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC),
                    dispatch_get_global_queue(0, 0), ^{
-        while (1) { scrubEnv(); sleep(3);(@ }
+        while (1) {
+            scrubEnv();
+            sleep(3);
+        }
     });
 
-    NSLog"[fcintl] loaded");
+    NSLog(@"[fcintl] loaded");
 }
