@@ -126,9 +126,10 @@ static void prefLoad(void) {
 
 static UIWindow *gWin = nil;
 static FCMView  *gView = nil;
-static NSInteger gFingerCount = 0;
-static NSTimeInterval gTapStart = 0;
-static NSTimeInterval gLastTap  = 0;
+static NSInteger      gCurrentTouches = 0;
+static NSInteger      gMaxTouches     = 0;
+static NSTimeInterval gTouchStart     = 0;
+static NSTimeInterval gLastTap        = 0;
 
 static void showMenu(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -158,29 +159,36 @@ static void showMenu(void) {
 - (void)sendEvent:(UIEvent *)event {
     if (event.type == UIEventTypeTouches) {
         NSSet *all = [event allTouches];
-        NSInteger count = (NSInteger)[all count];
-
-        if (count >= 3 && gFingerCount < 3) {
-            gFingerCount = count;
-            gTapStart = [[NSDate date] timeIntervalSince1970];
-        } else if (count < 3 && gFingerCount >= 3) {
-            NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
-            NSTimeInterval dur = now - gTapStart;
-            gFingerCount = 0;
-
-            if (dur < 0.4) {
-                if (gLastTap > 0 && (now - gLastTap) < 0.6) {
-                    gLastTap = 0;
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        if (gWin) {
-                            gWin.hidden = !gWin.hidden;
-                        } else {
-                            showMenu();
-                        }
-                    });
-                } else {
-                    gLastTap = now;
+        NSInteger began = 0, ended = 0;
+        for (UITouch *t in all) {
+            if (t.phase == UITouchPhaseBegan) began++;
+            else if (t.phase == UITouchPhaseEnded ||
+                     t.phase == UITouchPhaseCancelled) ended++;
+        }
+        if (began > 0) {
+            if (gCurrentTouches == 0)
+                gTouchStart = [[NSDate date] timeIntervalSince1970];
+            gCurrentTouches += began;
+            if (gCurrentTouches > gMaxTouches) gMaxTouches = gCurrentTouches;
+        }
+        if (ended > 0) {
+            gCurrentTouches -= ended;
+            if (gCurrentTouches <= 0) {
+                gCurrentTouches = 0;
+                NSTimeInterval now = [[NSDate date] timeIntervalSince1970];
+                NSTimeInterval dur = now - gTouchStart;
+                if (gMaxTouches >= 3 && dur < 0.4) {
+                    if (gLastTap > 0 && (now - gLastTap) < 0.6) {
+                        gLastTap = 0;
+                        dispatch_async(dispatch_get_main_queue(), ^{
+                            if (gWin) gWin.hidden = !gWin.hidden;
+                            else showMenu();
+                        });
+                    } else {
+                        gLastTap = now;
+                    }
                 }
+                gMaxTouches = 0;
             }
         }
     }
