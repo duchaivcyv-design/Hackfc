@@ -1,4 +1,3 @@
 #!/bin/bash
 killall -9 FIFAMobile 2>/dev/null
-killall -9 SpringBoard 2>/dev/null
 exit 0
