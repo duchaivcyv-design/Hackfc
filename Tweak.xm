@@ -6,12 +6,25 @@
 #import <sys/sysctl.h>
 #import <sys/types.h>
 #import <sys/mman.h>
-#import <sys/ptrace.h>
 #import <mach/mach.h>
+#import <mach/task_info.h>
 #import <mach-o/dyld.h>
 #import <dlfcn.h>
 #import <string.h>
 #import <stdlib.h>
+
+// ptrace — iOS SDK không ship header
+#define PT_TRACE_ME     0
+#define PT_ATTACH      10
+#define PT_DENY_ATTACH 31
+extern int ptrace(int request, pid_t pid, caddr_t addr, int data);
+
+// csops / task_info — prototype tay
+extern int csops(pid_t pid, unsigned int ops, void *useraddr, size_t usersize);
+extern kern_return_t task_info(task_name_t target_task,
+                               task_flavor_t flavor,
+                               task_info_t task_info_out,
+                               mach_msg_type_number_t *task_info_outCnt);
 
 // ===== state =====
 static BOOL gOn=YES, gCoin=YES, gGem=YES, gXP=YES, gStam=YES;
@@ -216,17 +229,17 @@ static void attachTrigger(UIWindow *w) {
 %end
 
 // ===== anti-check (libc layer) =====
-typedef int     (*stat_t)(const char *, struct stat *);
-typedef int     (*access_t)(const char *, int);
-typedef int     (*sysctl_t)(int *, u_int, void *, size_t *, void *, size_t);
-typedef void   *(*dlopen_t)(const char *, int);
-typedef int     (*ptrace_t)(int, pid_t, caddr_t, int);
-typedef int     (*task_info_t)(task_name_t, task_info_t, task_info_t, mach_msg_type_number_t *);
-typedef int     (*csops_t)(pid_t, unsigned int, void *, size_t);
+typedef int      (*stat_t)(const char *, struct stat *);
+typedef int      (*access_t)(const char *, int);
+typedef int      (*sysctl_t)(int *, u_int, void *, size_t *, void *, size_t);
+typedef void    *(*dlopen_t)(const char *, int);
+typedef int      (*ptrace_t)(int, pid_t, caddr_t, int);
+typedef kern_return_t (*task_info_t)(task_name_t, task_flavor_t, task_info_t, mach_msg_type_number_t *);
+typedef int      (*csops_t)(pid_t, unsigned int, void *, size_t);
 typedef uint32_t (*dyld_count_t)(void);
 typedef const char *(*dyld_name_t)(uint32_t);
-typedef char   *(*getenv_t)(const char *);
-typedef FILE   *(*fopen_t)(const char *, const char *);
+typedef char    *(*getenv_t)(const char *);
+typedef FILE    *(*fopen_t)(const char *, const char *);
 
 static stat_t        orig_stat          = NULL;
 static access_t      orig_access        = NULL;
@@ -244,7 +257,7 @@ static int my_stat(const char *p, struct stat *b) {
     if (gOn && gJB && p) {
         const char *bad[] = {"/var/jb","/Applications/Cydia","/Library/MobileSubstrate",
                              "/usr/sbin/sshd","/etc/apt","Substrate","substitute",
-                             "frida","cycript","fci",NULL};
+                             "frida","cycript","fcintl",NULL};
         for (int i = 0; bad[i]; i++)
             if (strstr(p, bad[i])) return -1;
     }
@@ -254,7 +267,7 @@ static int my_stat(const char *p, struct stat *b) {
 static int my_access(const char *p, int m) {
     if (gOn && gJB && p) {
         const char *bad[] = {"/var/jb","/Applications/Cydia","/Library/MobileSubstrate",
-                             "/usr/sbin/sshd","frida","fci",NULL};
+                             "/usr/sbin/sshd","frida","fcintl",NULL};
         for (int i = 0; bad[i]; i++)
             if (strstr(p, bad[i])) return -1;
     }
@@ -283,8 +296,8 @@ static int my_ptrace(int req, pid_t pid, caddr_t addr, int data) {
     return orig_ptrace(req, pid, addr, data);
 }
 
-static int my_task_info(task_name_t t, task_info_t fi, task_info_t ti,
-                        mach_msg_type_number_t *cnt) {
+static kern_return_t my_task_info(task_name_t t, task_flavor_t fi,
+                                  task_info_t ti, mach_msg_type_number_t *cnt) {
     if (gOn && gAnti && fi == TASK_DYLD_INFO) {
         if (ti && cnt) memset(ti, 0, *cnt * sizeof(integer_t));
         return KERN_SUCCESS;
