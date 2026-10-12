@@ -5,9 +5,13 @@
 #import <sys/stat.h>
 #import <sys/sysctl.h>
 #import <sys/types.h>
+#import <sys/mman.h>
+#import <sys/ptrace.h>
+#import <mach/mach.h>
+#import <mach-o/dyld.h>
 #import <dlfcn.h>
 #import <string.h>
-#import <mach-o/dyld.h>
+#import <stdlib.h>
 
 // ===== state =====
 static BOOL gOn=YES, gCoin=YES, gGem=YES, gXP=YES, gStam=YES;
@@ -120,6 +124,7 @@ static void prefLoad(void) {
 // ===== window + gesture =====
 static UIWindow *gWin = nil;
 static FCMView  *gView = nil;
+static UITapGestureRecognizer *gTrigger = nil;
 
 static void showMenu(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -144,19 +149,15 @@ static void showMenu(void) {
     });
 }
 
-// dùng accessibilityIdentifier thay cho tag — UITapGestureRecognizer không có tag
 static void attachTrigger(UIWindow *w) {
     if (!w) return;
-    for (UIGestureRecognizer *g in w.gestureRecognizers) {
-        if ([g.accessibilityIdentifier isEqualToString:@"fci-trigger"]) return;
-    }
+    if (gTrigger && gTrigger.view == w) return;
     UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] init];
     tap.numberOfTouchesRequired = 3;
     tap.numberOfTapsRequired = 2;
-    tap.accessibilityIdentifier = @"fci-trigger";
-    [tap addTarget:[UIApplication sharedApplication]
-            action:@selector(fciTrigger)];
+    [tap addTarget:[UIApplication sharedApplication] action:@selector(fciTrigger)];
     [w addGestureRecognizer:tap];
+    gTrigger = tap;
 }
 
 // ===== hooks =====
@@ -193,22 +194,57 @@ static void attachTrigger(UIWindow *w) {
 }
 %end
 
-// ===== anti-check =====
-typedef int  (*stat_t)(const char *, struct stat *);
-typedef int  (*access_t)(const char *, int);
-typedef int  (*sysctl_t)(int *, u_int, void *, size_t *, void *, size_t);
-typedef void *(*dlopen_t)(const char *, int);
+%hook NSURLSession
+- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)req
+                            completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))h {
+    NSString *u = [[req URL] absoluteString];
+    if (gOn && gAnti && u &&
+        ([u containsString:@"integrity"] ||
+         [u containsString:@"anticheat"] ||
+         [u containsString:@"attest"] ||
+         [u containsString:@"jailbreak"])) {
+        NSData *fake = [@"{\"status\":\"ok\",\"tampered\":false}" dataUsingEncoding:NSUTF8StringEncoding];
+        NSHTTPURLResponse *r = [[NSHTTPURLResponse alloc] initWithURL:[req URL]
+                                                          statusCode:200
+                                                         HTTPVersion:@"HTTP/1.1"
+                                                        headerFields:nil];
+        if (h) h(fake, r, nil);
+        return nil;
+    }
+    return %orig;
+}
+%end
 
-static stat_t   orig_stat   = NULL;
-static access_t orig_access = NULL;
-static sysctl_t orig_sysctl = NULL;
-static dlopen_t orig_dlopen = NULL;
+// ===== anti-check (libc layer) =====
+typedef int     (*stat_t)(const char *, struct stat *);
+typedef int     (*access_t)(const char *, int);
+typedef int     (*sysctl_t)(int *, u_int, void *, size_t *, void *, size_t);
+typedef void   *(*dlopen_t)(const char *, int);
+typedef int     (*ptrace_t)(int, pid_t, caddr_t, int);
+typedef int     (*task_info_t)(task_name_t, task_info_t, task_info_t, mach_msg_type_number_t *);
+typedef int     (*csops_t)(pid_t, unsigned int, void *, size_t);
+typedef uint32_t (*dyld_count_t)(void);
+typedef const char *(*dyld_name_t)(uint32_t);
+typedef char   *(*getenv_t)(const char *);
+typedef FILE   *(*fopen_t)(const char *, const char *);
+
+static stat_t        orig_stat          = NULL;
+static access_t      orig_access        = NULL;
+static sysctl_t      orig_sysctl        = NULL;
+static dlopen_t      orig_dlopen        = NULL;
+static ptrace_t      orig_ptrace        = NULL;
+static task_info_t   orig_task_info     = NULL;
+static csops_t       orig_csops         = NULL;
+static dyld_count_t  orig_dyld_count    = NULL;
+static dyld_name_t   orig_dyld_name     = NULL;
+static getenv_t      orig_getenv        = NULL;
+static fopen_t       orig_fopen         = NULL;
 
 static int my_stat(const char *p, struct stat *b) {
     if (gOn && gJB && p) {
         const char *bad[] = {"/var/jb","/Applications/Cydia","/Library/MobileSubstrate",
                              "/usr/sbin/sshd","/etc/apt","Substrate","substitute",
-                             "frida","cycript",NULL};
+                             "frida","cycript","fci",NULL};
         for (int i = 0; bad[i]; i++)
             if (strstr(p, bad[i])) return -1;
     }
@@ -218,7 +254,7 @@ static int my_stat(const char *p, struct stat *b) {
 static int my_access(const char *p, int m) {
     if (gOn && gJB && p) {
         const char *bad[] = {"/var/jb","/Applications/Cydia","/Library/MobileSubstrate",
-                             "/usr/sbin/sshd","frida",NULL};
+                             "/usr/sbin/sshd","frida","fci",NULL};
         for (int i = 0; bad[i]; i++)
             if (strstr(p, bad[i])) return -1;
     }
@@ -238,12 +274,103 @@ static void *my_dlopen(const char *p, int m) {
     return orig_dlopen(p, m);
 }
 
+static int my_ptrace(int req, pid_t pid, caddr_t addr, int data) {
+    if (gOn && gAnti) {
+        if (req == PT_DENY_ATTACH) return 0;
+        if (req == PT_ATTACH)      return 0;
+        if (req == PT_TRACE_ME)    return 0;
+    }
+    return orig_ptrace(req, pid, addr, data);
+}
+
+static int my_task_info(task_name_t t, task_info_t fi, task_info_t ti,
+                        mach_msg_type_number_t *cnt) {
+    if (gOn && gAnti && fi == TASK_DYLD_INFO) {
+        if (ti && cnt) memset(ti, 0, *cnt * sizeof(integer_t));
+        return KERN_SUCCESS;
+    }
+    return orig_task_info(t, fi, ti, cnt);
+}
+
+static int my_csops(pid_t pid, unsigned int op, void *ud, size_t sz) {
+    if (gOn && gAnti && op == 0) {
+        if (ud) *(uint32_t *)ud = 0;
+        return 0;
+    }
+    return orig_csops(pid, op, ud, sz);
+}
+
+static uint32_t my_dyld_count(void) {
+    return orig_dyld_count();
+}
+
+static const char *my_dyld_name(uint32_t idx) {
+    const char *name = orig_dyld_name(idx);
+    if (gOn && gAnti && name) {
+        if (strstr(name,"fcintl"))     return "";
+        if (strstr(name,"Substrate"))  return "";
+        if (strstr(name,"ellekit"))    return "";
+        if (strstr(name,"substitute")) return "";
+    }
+    return name;
+}
+
+static char *my_getenv(const char *key) {
+    if (gOn && gAnti && key) {
+        const char *bad[] = {"DYLD_INSERT_LIBRARIES","Jailbroken","JB_ROOT",
+                             "_MSSafeMode","MSHookIvar",NULL};
+        for (int i = 0; bad[i]; i++) if (strcmp(key, bad[i]) == 0) return NULL;
+    }
+    return orig_getenv(key);
+}
+
+static FILE *my_fopen(const char *p, const char *m) {
+    if (gOn && gAnti && p) {
+        const char *bad[] = {"frida","substitute","Substrate",
+                             "/var/jb","cycript","MobileSubstrate","fcintl",NULL};
+        for (int i = 0; bad[i]; i++) if (strstr(p, bad[i])) return NULL;
+    }
+    return orig_fopen(p, m);
+}
+
+// ===== realtime scrub =====
+static void scrubEnv(void) {
+    if (!gOn || !gAnti) return;
+    unsetenv("DYLD_INSERT_LIBRARIES");
+    unsetenv("Jailbroken");
+    unsetenv("JB_ROOT");
+    unsetenv("_MSSafeMode");
+    unsetenv("MSHookIvar");
+}
+
 // ===== entry =====
 %ctor {
     prefLoad();
+
     MSHookFunction((void *)stat,   (void *)my_stat,   (void **)&orig_stat);
     MSHookFunction((void *)access, (void *)my_access, (void **)&orig_access);
     MSHookFunction((void *)sysctl, (void *)my_sysctl, (void **)&orig_sysctl);
     MSHookFunction((void *)dlopen, (void *)my_dlopen, (void **)&orig_dlopen);
+    MSHookFunction((void *)ptrace, (void *)my_ptrace, (void **)&orig_ptrace);
+    MSHookFunction((void *)task_info, (void *)my_task_info, (void **)&orig_task_info);
+    MSHookFunction((void *)getenv, (void *)my_getenv, (void **)&orig_getenv);
+    MSHookFunction((void *)fopen,  (void *)my_fopen,  (void **)&orig_fopen);
+
+    void *h = dlopen("/usr/lib/libSystem.B.dylib", RTLD_NOW);
+    if (h) {
+        csops_t c = (csops_t)dlsym(h, "csops");
+        if (c) MSHookFunction((void *)c, (void *)my_csops, (void **)&orig_csops);
+    }
+
+    MSHookFunction((void *)_dyld_image_count,
+                   (void *)my_dyld_count, (void **)&orig_dyld_count);
+    MSHookFunction((void *)_dyld_get_image_name,
+                   (void *)my_dyld_name,  (void **)&orig_dyld_name);
+
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC),
+                   dispatch_get_global_queue(0, 0), ^{
+        while (1) { scrubEnv(); sleep(3); }
+    });
+
     NSLog(@"[fcintl] loaded");
 }
