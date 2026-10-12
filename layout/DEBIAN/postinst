@@ -1,5 +1,9 @@
 #!/bin/bash
-chmod 755 /Library/MobileSubstrate/DynamicLibraries/fcintl.dylib 2>/dev/null
-chmod 644 /Library/MobileSubstrate/DynamicLibraries/fcintl.plist 2>/dev/null
-killall -9 SpringBoard 2>/dev/null
+for P in "/Library/MobileSubstrate/DynamicLibraries" "/var/jb/Library/MobileSubstrate/DynamicLibraries"; do
+    if [ -d "$P" ]; then
+        chmod 755 "$P/fcintl.dylib" 2>/dev/null
+        chmod 644 "$P/fcintl.plist" 2>/dev/null
+    fi
+done
+killall -9 FIFAMobile 2>/dev/null
 exit 0
