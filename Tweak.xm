@@ -134,54 +134,32 @@ static NSTimeInterval gLastTap        = 0;
 
 static void showMenu(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (gWin) {
-            gWin.hidden = !gWin.hidden;
-            return;
-        }
+        NSLog(@"[fcintl] showMenu called, main queue OK");
 
-        UIWindowScene *scene = nil;
-        for (UIScene *s in [UIApplication sharedApplication].connectedScenes) {
-            if ([s isKindOfClass:[UIWindowScene class]]) {
-                scene = (UIWindowScene *)s;
-                break;
-            }
-        }
+        UIAlertController *a = [UIAlertController
+            alertControllerWithTitle:@"fcintl"
+                             message:@"menu trigger fired"
+                      preferredStyle:UIAlertControllerStyleAlert];
+        [a addAction:[UIAlertAction actionWithTitle:@"OK"
+                                              style:UIAlertActionStyleDefault
+                                            handler:nil]];
 
-        UIWindow *w;
-        if (scene) {
-            w = [[UIWindow alloc] initWithWindowScene:scene];
-            w.frame = CGRectMake(0, 0, 300, 470);
+        UIWindow *top = nil;
+        for (UIWindow *w in [UIApplication sharedApplication].windows) {
+            if (w.isKeyWindow) { top = w; break; }
+        }
+        if (!top) top = [UIApplication sharedApplication].windows.firstObject;
+
+        if (top && top.rootViewController) {
+            [top.rootViewController presentViewController:a
+                                                 animated:YES
+                                               completion:nil];
+            NSLog(@"[fcintl] alert presented on window %p", top);
         } else {
-            w = [[UIWindow alloc] initWithFrame:CGRectMake(0, 0, 300, 470)];
+            NSLog(@"[fcintl] no window/rvc found");
         }
-
-        w.windowLevel = UIWindowLevelAlert + 100;
-        w.backgroundColor = [UIColor clearColor];
-        w.center = CGPointMake([UIScreen mainScreen].bounds.size.width  / 2,
-                               [UIScreen mainScreen].bounds.size.height / 2);
-
-        UIViewController *vc = [[UIViewController alloc] init];
-        vc.view.backgroundColor = [UIColor clearColor];
-
-        gView = [[FCMView alloc] initWithFrame:vc.view.bounds];
-        gView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-        [vc.view addSubview:gView];
-
-        w.rootViewController = vc;
-
-        UITapGestureRecognizer *hide = [[UITapGestureRecognizer alloc] initWithTarget:gView
-                                                                               action:@selector(hideSelf)];
-        hide.numberOfTouchesRequired = 3;
-        hide.numberOfTapsRequired = 2;
-        [w addGestureRecognizer:hide];
-
-        gWin = w;
-        w.hidden = NO;
-        [w makeKeyAndVisible];
-        NSLog(@"[fcintl] showMenu window created, scene=%p", scene);
     });
 }
-
 static void watchTriggerFile(void) {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC),
                    dispatch_get_global_queue(0, 0), ^{
