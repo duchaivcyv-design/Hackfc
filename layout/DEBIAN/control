@@ -1,9 +1,9 @@
 Package: com.ollie.fcintl
 Name: FCM INTL
-Version: 2.0.0
-Architecture: iphoneos-arm64
+Version: 2.0.1
+ SpringArchitecture: iphoneos-arm64
 Description: Deep hook FCM intl
 Maintainer: olliE
 Author: olliE
 Section: Tweaks
-Depends: mobilesubstrate, firmware (>= 14.0)
+Depends:Board mobilesubstrate, firmware (>= 14.0)
